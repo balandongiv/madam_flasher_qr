@@ -1,0 +1,26 @@
+# Machine-specific settings. This is the only file that should change between computers.
+# Use single quotes for Windows paths. Relative paths are resolved from this file's folder.
+paths:
+  excel_file: 'D:\book\complete_student_db.xlsx'
+  images_dir: 'D:\book\newly_created'
+  output_dir: './output'
+  default_image: 'D:\book\default_bg.png'   # shown when a student has no image; null = show nothing
+excel:
+  sheet: null                  # null = first sheet
+  columns:
+    program: Program
+    year: year_of_study
+    metric: student_id
+    name: name
+    id: id
+server:
+  host: 127.0.0.1              # loopback only; other hosts are refused
+  port: 8000
+display:
+  show_name_caption: false     # true = show the student's name under the image (debugging)
+  window_position: null        # where the display (image) window opens, e.g. '1920,0' = top-left of a 2nd monitor
+                               # to the right of a 1920px-wide main screen; null = main screen
+  fullscreen: true             # open the display window full screen
+scanner:
+  camera_label_contains: "Logi"   # prefer the Logitech webcam, else default camera
+  debounce_seconds: 3

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Madam Flasher – Operator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="operator">
+    <header class="toolbar">
+      <strong class="brand">Operator</strong>
+      <label for="camera">Camera</label>
+      <select id="camera"></select>
+      <span id="scan-engine" class="muted"></span>
+      <span class="spacer"></span>
+      <span id="health" class="muted"></span>
+      <span id="link" class="link-dot" title="Live connection to the server"></span>
+      <button id="open-display" type="button" title="Open the audience display window">Open display window</button>
+    </header>
+
+    <div class="grid">
+      <section class="camera-wrap">
+        <video id="video" playsinline muted autoplay></video>
+        <div class="aim"></div>
+        <p id="camera-msg" class="camera-msg"></p>
+      </section>
+
+      <aside class="side">
+        <div class="screens">
+          <section class="card screen">
+            <h2>On display</h2>
+            <div class="preview">
+              <img id="preview-img" alt="" class="hidden">
+              <span id="preview-empty" class="muted">Nothing — screen is black</span>
+            </div>
+            <p id="preview-name" class="preview-name"></p>
+            <button id="clear-display" type="button" title="Blank the audience screen (Esc)">Clear display (Esc)</button>
+          </section>
+
+          <section id="next-card" class="card screen next">
+            <h2>Next <span class="hint">press N</span></h2>
+            <div class="preview">
+              <img id="next-img" alt="" class="hidden">
+              <span id="next-empty" class="muted">Scan a QR or type a Backup No.</span>
+            </div>
+            <p id="next-name" class="preview-name"></p>
+            <div class="buttons">
+              <button id="show-next" type="button" title="Put this image on the audience screen (N)" disabled>Show (N)</button>
+              <button id="show-default" type="button" title="Show the default image instead (B)">Default (B)</button>
+            </div>
+          </section>
+        </div>
+
+        <section id="result" class="card result">
+          <h2>Last result</h2>
+          <p id="result-title" class="result-title muted">Waiting for a scan…</p>
+          <p id="result-sub" class="result-sub"></p>
+        </section>
+      </aside>
+    </div>
+
+    <form id="manual" autocomplete="off">
+      <label for="code">Backup No.</label>
+      <input id="code" name="code" type="text" inputmode="numeric" enterkeyhint="go"
+             placeholder="No. + Enter" autofocus spellcheck="false">
+    </form>
+  </main>
+
+  <canvas id="frame" hidden></canvas>
+  <script src="vendor/jsQR.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
