@@ -1,0 +1,134 @@
+# Event pipeline settings: where every input lives and where every step writes.
+# Step 1  step1_clean_images.py   Forms photos  -> clean portraits (clean_images_dir) + InDesign Data Merge CSV
+#         (manual)                InDesign merge -> exported student images (indesign_images_dir)
+# Step 2  step2_make_coupons.py   eligible list + attendance + CSV ids -> student database -> coupons.pdf
+#         app.py                  scans coupons and shows the InDesign images
+# Use single quotes for Windows paths. Relative file names under `question` are inside question.dir.
+
+event: 'MAJLIS ANUGERAH DEKAN & APRESIASI MAHASISWA SESI 2025/2026'
+
+# ---------------------------------------------------------------------------- inputs
+question:
+  # OneDrive folder that Microsoft Forms fills. It must hold:
+  #   1. every photo the students uploaded (Forms names them "<their file name>_<account name>.<ext>")
+  #   2. eligible_xlsx  : everyone eligible for the award (Dean's List), the full coupon list
+  #   3. responses_xlsx : the Forms responses (Forms -> Responses -> Open in Excel), incl. attendance answer
+  # Both Excel files may stay open in Excel; they are read from a temporary copy.
+  dir: 'C:\Users\balan\OneDrive - ums.edu.my\Question'
+
+  eligible_xlsx: 'complete_database.xlsx'
+  eligible:
+    sheets: ['SEMESTER I', 'SEMESTER II']   # a student on both lists appears once
+    header_row: 2                           # row 1 is the sheet title, row 2 the headers
+    columns:
+      matric: 'No. Pelajar'
+      name: 'Nama Pelajar'
+      program: 'Program'
+
+  responses_xlsx: 'MAJLIS ANUGERAH DEKAN & APRESIASI MAHASISWA SESSION 2025_2026(1-170).xlsx'
+  responses:
+    # Column headers are long; each is matched by the start of its text.
+    columns:
+      email: 'Email'
+      form_name: 'Name'                     # Forms account name (matched exactly)
+      completed: 'Completion time'
+      attendance: 'Will you be attending the ceremony?'   # Yes / No; "No" skips the matric and photo questions
+      full_name: 'FULL NAME'
+      matric: 'MATRIC NUMBER'
+      programme: 'PROGRAMME'
+      year: 'YEAR OF STUDY'
+      photo: 'Please Upload a Photo'
+      quote: 'Please Provide a Quote'
+
+# ---------------------------------------------------------------------------- outputs
+outputs:
+  # Step 1 writes the clean portraits (<MATRIC>.png, transparent background) and the Data Merge CSV here.
+  # InDesign's Data Merge reads this folder, so it stays outside the repository.
+  clean_images_dir: 'D:\book\new_name'
+  datamerge_csv: 'yearbook_datamerge.csv'                 # inside clean_images_dir; its `id` = coupon Backup No.
+  corrections_dir: 'D:\book\new_name\corrections'         # replacement photos named <MATRIC>.<ext>
+  # Images already processed and exported by InDesign (<MATRIC>.png). The app shows these;
+  # config.yaml paths.images_dir must point to the same folder.
+  indesign_images_dir: 'C:\Users\balan\OneDrive - ums.edu.my\MAD 2026\data_student'
+  # Step 2 writes the student database to config.yaml paths.excel_file (read by the app),
+  # and the QR codes, coupons.pdf and qr_test.pptx to config.yaml paths.output_dir.
+
+# ---------------------------------------------------------------------------- step 2: student database
+students:
+  # Program names on the eligible list (Malay) -> names used in the yearbook CSV (English).
+  # Students in the yearbook CSV keep the program and year they typed in the form.
+  program_names:
+    AKUAKULTUR: 'AQUACULTURE'
+    BIOTEKNOLOGI: 'BIOTECHNOLOGY'
+    FIZIK INDUSTRI: 'INDUSTRIAL PHYSICS'
+    GEOLOGI: 'GEOLOGY'
+    KIMIA INDUSTRI: 'INDUSTRIAL CHEMISTRY'
+    MATEMATIK DENGAN EKONOMI: 'MATHEMATICS WITH ECONOMICS'
+    MATEMATIK GRAFIK BERKOMPUTER: 'MATHEMATICS COMPUTER GRAPHICS'
+    SAINS MARIN: 'MARINE SCIENCES'
+    SAINS SEKITARAN: 'ENVIRONMENTAL SCIENCE'
+  # Year for students not in the yearbook CSV, from the intake year in the matric number:
+  # year = session_start - (2000 + digits 3-4) + 1, capped at max_year  (BS25 -> Year 2 in 2026).
+  year_of_study:
+    session_start: 2026
+    max_year: 4
+
+# ---------------------------------------------------------------------------- step 1: portrait settings
+# Moved unchanged from D:\book\python_code\yearbook\config.toml. All pixel coordinates refer to the
+# OUTPUT portrait (origin top-left). See docs/yearbook.md for what each value does.
+yearbook:
+  naming:
+    mode: 'responses'            # names come from the Forms responses Excel; "filename" = matric at start of file name
+    pattern: '{matric}'          # output file name, e.g. BS23110058.png
+    matric_regex: '^[A-Z]{2}\d{8}$'
+    uppercase_name: true
+
+  template:                      # 4:5 portrait, 900 x 1125 px = 3 x 3.75 in at 300 dpi
+    width: 900
+    height: 1125
+    dpi: 300
+    eye_center_x: 450            # midpoint between the eyes
+    eye_center_y: 480
+    interocular: 172             # target distance between iris centres (px)
+    mouth_y: 662                 # target mouth-centre height (~ eye_y + 1.06 x interocular)
+    mouth_weight: 0.3            # 0 = scale from eye distance only, 1 = from eye-to-mouth distance only
+    max_scale_deviation: 0.10
+
+  crop:
+    fill: 'replicate'            # area outside the source photo: "replicate" or "color"
+    fill_color: [255, 255, 255]
+    hair_allowance: 0.9
+    min_top_margin: 45
+    min_chin_to_bottom: 285
+    max_padding_head: 0.01
+    max_padding_total: 0.15
+
+  quality:
+    min_face_confidence: 0.6
+    max_faces: 1
+    second_face_ratio: 0.35
+    max_roll_deg: 25
+    max_yaw_deg: 20
+    max_pitch_deg: 22
+    max_upscale: 1.6
+    min_sharpness: 6
+    max_blink: 0.55
+    mouth_tolerance: 35
+    flag_low_resolution: false
+    flag_tight_crop: false
+
+  export:
+    format: 'png'
+    jpeg_quality: 95
+    contact_columns: 6
+    contact_rows: 5
+    contact_thumb_width: 220
+    datamerge_encoding: 'utf-16'   # so names/quotes with special characters import into InDesign
+
+  background:                    # background removal on the GPU (rembg + onnxruntime CUDA)
+    enabled: true                # the current workflow (was `run_yearbook.py --remove-bg`); --keep-bg turns it off
+    use_gpu: true
+    model: 'birefnet-portrait'
+    mode: 'transparent'          # "transparent" = PNG with alpha, "color" = solid colour below
+    color: [255, 255, 255]
+    alpha_matting: false

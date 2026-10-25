@@ -1,8 +1,8 @@
 # Machine-specific settings. This is the only file that should change between computers.
 # Use single quotes for Windows paths. Relative paths are resolved from this file's folder.
 paths:
-  excel_file: 'D:\book\db_student.xlsx'
-  images_dir: 'D:\book\unique_bg'
+  excel_file: './output/student_db.xlsx'      # written by step2_make_coupons.py (see pipeline.yaml)
+  images_dir: 'C:\Users\balan\OneDrive - ums.edu.my\MAD 2026\data_student'   # InDesign-exported images
   output_dir: './output'
   default_image: 'D:\book\default_bg.png'   # shown when a student has no image; null = show nothing
 excel:

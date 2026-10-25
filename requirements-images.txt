@@ -1,0 +1,14 @@
+# Step 1 only (step1_clean_images.py): face alignment + GPU background removal.
+# Already installed in the conda env "madam-flasher-qr" (conda activate madam-flasher-qr).
+# The app and step 2 use requirements.txt (.venv, set up by app.py) instead.
+PyYAML
+mediapipe>=0.10.14
+opencv-python
+numpy
+pillow
+pillow-heif
+openpyxl
+# Background removal on the NVIDIA GPU (CUDA/cuDNN come from the pip wheels). Do not also install
+# the CPU "onnxruntime" package.
+rembg[gpu]
+onnxruntime-gpu[cuda,cudnn]

@@ -4,6 +4,9 @@ A local web app for showing student images. A staff member scans a printed QR co
 student's **Backup No.** (the `id` column). The app looks the student up in the Excel file and shows that
 student's image full-screen in Chrome.
 
+The repository also holds the whole **event pipeline** that produces the images and the coupons (see
+[Event pipeline](#event-pipeline-step-by-step) below).
+
 How it looks:
 
 - **The Chrome window is the display.** It shows only the student's image on black: no camera, text, errors or
@@ -101,8 +104,8 @@ contains the config file.
 
 | Key | Meaning |
 |---|---|
-| `paths.excel_file` | Student workbook (`Program, year_of_study, student_id, name, id`; other columns are ignored) |
-| `paths.images_dir` | Folder of `<metric_no>.png` images (matched case-insensitively) |
+| `paths.excel_file` | Student workbook (`Program, year_of_study, student_id, name, id`; other columns are ignored). Written by `step2_make_coupons.py` (default `./output/student_db.xlsx`) |
+| `paths.images_dir` | Folder of `<metric_no>.png` images (matched case-insensitively): the InDesign exports, same as `pipeline.yaml` `outputs.indesign_images_dir` |
 | `paths.output_dir` | Where the scan log, QR codes, PDF and PPTX are written |
 | `paths.default_image` | Image shown when a student has no `<metric_no>.png` (e.g. `'D:\book\default_bg.png'`); `null` = show nothing |
 | `excel.sheet` | Sheet name, or `null` for the first sheet |
@@ -179,20 +182,91 @@ shown in `/api/health` and in the toolbar.
 | `POST /api/display/clear` | Blank the display |
 | `POST /api/reload` | Reloads the Excel file and the images now |
 
+## Event pipeline (step by step)
+
+All inputs and outputs are named in **`pipeline.yaml`** (what lives in the OneDrive `Question` folder, which
+two Excel files must be there, and where each step writes). Edit that file for a new event or year.
+
+```
+OneDrive\Question\                          (pipeline.yaml: question)
+  photos uploaded through Microsoft Forms
+  complete_database.xlsx                    everyone eligible -> one coupon each
+  MAJLIS ANUGERAH DEKAN ... (1-170).xlsx    Forms responses, incl. "Will you be attending the ceremony?"
+        |
+        |  Step 1: step1_clean_images.py    rename, align faces, remove background (GPU)
+        v
+D:\book\new_name\                           (outputs.clean_images_dir)
+  <MATRIC>.png, yearbook_datamerge.csv      the CSV's `id` = coupon Backup No.
+        |
+        |  InDesign Data Merge (manual), export one image per student
+        v
+OneDrive\MAD 2026\data_student\<MATRIC>.png (outputs.indesign_images_dir = config.yaml images_dir)
+        |
+        |  Step 2: step2_make_coupons.py    eligible list + attendance + CSV ids
+        v
+output\student_db.xlsx                      (config.yaml excel_file) read by the app
+output\coupons.pdf, qr_test.pptx, qr\       coupons with the attendance status
+        |
+        |  python app.py                    scan coupons at the ceremony
+```
+
+**Step 1: clean images.** Needs the image packages (MediaPipe, rembg on the GPU), which are in the conda env
+`madam-flasher-qr` (or `pip install -r requirements-images.txt`):
+
+```bat
+conda activate madam-flasher-qr
+python step1_clean_images.py                         REM all photos, ~2 minutes on the GPU
+python step1_clean_images.py --only BS23110116       REM redo one student (CSV not rewritten)
+```
+
+The portraits and `yearbook_datamerge.csv` are saved in `D:\book\new_name`, as before; review the ATTENTION list
+and `reports\contact_sheet_NN.jpg`. Details, including fixing flagged photos: [docs/yearbook.md](docs/yearbook.md).
+
+**Step 2: student database and coupons.** Uses the project `.venv` (the same as the app):
+
+```bat
+.venv\Scripts\python step2_make_coupons.py                          REM database + all coupons
+.venv\Scripts\python step2_make_coupons.py --attendance confirmed   REM coupons for confirmed students only
+.venv\Scripts\python step2_make_coupons.py --db-only                REM database only
+```
+
+It builds `output\student_db.xlsx` with one row per eligible student:
+
+- **id, name, program, year** come from `yearbook_datamerge.csv` when the student has a portrait (so the Backup No.
+  matches InDesign). Other eligible students get ids after the CSV's last id, their name from the eligible list,
+  the program translated with `students.program_names` and the year from the matric intake year.
+- **attendance** is the student's latest answer to *Will you be attending the ceremony?*: **CONFIRMED**,
+  **NOT ATTENDING**, or **NO RESPONSE** (never answered). Students who answer "No" skip the matric question,
+  so they are matched by the matric in their email address or by name.
+
+Anything to check (confirmed but no portrait, portraits not yet exported from InDesign, responses that match no
+student, students not on the eligible list) is printed and saved in `output\student_attention.txt`.
+
+Because the CSV ids follow the sort order, a full step 1 run with new students shifts ids: re-run step 2 and reprint.
+
+Other tools: `tools\rename_form_uploads.py` (rename-only copy of the uploads, [docs](docs/rename_form_uploads.md))
+and `tools\round_canvas.py` (the round gold frame for InDesign).
+
 ## Generating coupons
+
+`step2_make_coupons.py` runs this for you. To regenerate coupons from the existing database only:
 
 ```bat
 .venv\Scripts\python generate_coupons.py                  REM all students
 .venv\Scripts\python generate_coupons.py --limit 5        REM quick test
-.venv\Scripts\python generate_coupons.py --program "SAINS MARIN"
+.venv\Scripts\python generate_coupons.py --program "MARINE SCIENCES"
+.venv\Scripts\python generate_coupons.py --rows 4         REM 8 larger coupons per page
+.venv\Scripts\python generate_coupons.py --attendance confirmed no-response
 ```
 
 The script writes these files to `output_dir`:
 
 - `qr/<metric_no>.png`: one QR per student (payload = `metric_no`, error correction M, 4-module quiet zone)
-- `coupons.pdf`: A4, 8 coupons per page with dashed cut lines. Each coupon has the QR, a large
-  **Backup No.** (`id`), the name, program and year.
-- `qr_test.pptx`: one large QR per slide on white, with the `id` small in the corner. Open it in PowerPoint
+- `coupons.pdf`: A4, 12 coupons per page (2 columns × `--rows`, default 6) with dashed cut lines. Each coupon
+  has the QR, a large **ID (Backup No.)**, the name, matric no., program and year, and under the QR an
+  **Attendance** section with the date of the responses export: a filled green **CONFIRMED**, a red outlined
+  **NOT ATTENDING** or a grey outlined **NO RESPONSE**. The text shrinks to fit when there are more rows.
+- `qr_test.pptx`: one large QR per slide on white, with the `id`, matric no., name, program and year small in the corner. Open it in PowerPoint
   and hold the webcam up to the screen to test without printing.
 
 Print `coupons.pdf` at **100% / Actual size** (not "fit to page") so the QR codes stay crisp.
@@ -239,8 +313,18 @@ Layout:
 
 ```
 config.yaml, config.example.yaml, requirements.txt, requirements-dev.txt
+pipeline.yaml          event inputs/outputs (Question folder, Excel files, image folders), portrait settings
+requirements-images.txt  step 1 packages (MediaPipe, rembg GPU)
 app.py                 launcher: sets up .venv, starts the server, opens Chrome
-generate_coupons.py
+step1_clean_images.py  step 1: Forms photos -> clean portraits + InDesign Data Merge CSV
+step2_make_coupons.py  step 2: student database (eligible + attendance + CSV ids) -> coupons
+generate_coupons.py    QR codes, coupons.pdf, qr_test.pptx from the student database
+pipeline/settings.py   loads pipeline.yaml
+pipeline/students.py   builds the student database, attendance matching
+pipeline/yearbook/     portrait pipeline (moved from D:\book\python_code\yearbook): naming, landmarks,
+                       align, background, report, run; models/ (MediaPipe face models)
+tools/                 rename_form_uploads.py, round_canvas.py (moved from D:\book\python_code)
+docs/                  yearbook.md, rename_form_uploads.md
 app/main.py            FastAPI app and server entry point
 app/display.py         shared display state (what the audience sees, auto-expiry)
 app/data.py            config, Excel loading, input classification, image matching
